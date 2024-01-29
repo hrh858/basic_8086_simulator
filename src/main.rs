@@ -11,7 +11,7 @@ use v2_sim8086::dis::Dissassembler;
 fn main() -> Result<(), Error> {
     let args: Vec<String> = args().collect();
     if args.len() < 2 {
-        panic!("You must provide a file to the path a first and only argument")
+        panic!("You must provide a file to the path as first and only argument")
     }
 
     let mut in_f = File::open(&args[1])?;
