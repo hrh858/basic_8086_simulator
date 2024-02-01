@@ -4,15 +4,8 @@ pub mod mov;
 
 use arith::{ArithmeticFamily, ArithmeticVariant};
 use cond_jump::ConditionalJumpVariant;
-// use mov::{
-//     AccToMemStruct, ImmToRegMemStruct, ImmToRegStruct, MemToAccStruct, MoveVariant,
-//     RegMemToFromRegStruct,
-// };
 
-use self::{
-    arith::{ImmAccStruct, ImmRegMemStruct, RegMemAndRegEitherStruct},
-    mov::MoveVariant,
-};
+use self::mov::MoveVariant;
 
 #[derive(Debug)]
 pub enum Opcode {
@@ -29,12 +22,12 @@ pub enum Opcode {
     NotImplemented,
 }
 
-pub fn parse_opcode(byte: u8) -> Opcode {
-    if let Some(variant) = try_decode_move(byte) {
+pub fn parse_opcode(first_byte: u8, second_byte: u8) -> Opcode {
+    if let Some(variant) = try_decode_move(first_byte) {
         Opcode::Move { variant }
-    } else if let Some((family, variant)) = try_decode_arithmetic(byte) {
+    } else if let Some((family, variant)) = try_decode_arithmetic(first_byte, second_byte) {
         Opcode::Arithmetic { family, variant }
-    } else if let Some(variant) = try_decode_jump(byte) {
+    } else if let Some(variant) = try_decode_jump(first_byte) {
         Opcode::ConditionalJump { variant }
     } else {
         Opcode::NotImplemented
@@ -66,60 +59,44 @@ fn try_decode_move(byte: u8) -> Option<MoveVariant> {
     None
 }
 
-fn try_decode_arithmetic(byte: u8) -> Option<(ArithmeticFamily, ArithmeticVariant)> {
-    if byte >> 2 == 0b000000 {
+fn try_decode_arithmetic(
+    first_byte: u8,
+    second_byte: u8,
+) -> Option<(ArithmeticFamily, ArithmeticVariant)> {
+    if first_byte >> 2 == 0b000000 {
+        return Some((ArithmeticFamily::Add, ArithmeticVariant::RegMemAndRegEither));
+    }
+    if first_byte >> 2 == 0b100000 {
         return Some((
-            ArithmeticFamily::Add,
-            ArithmeticVariant::RegMemAndRegEither(RegMemAndRegEitherStruct {}),
+            match (second_byte >> 3) & 0b111 {
+                0b000 => ArithmeticFamily::Add, // add
+                0b101 => ArithmeticFamily::Sub, // sub
+                0b111 => ArithmeticFamily::Cmp, // cmp
+                _ => todo!(),
+            },
+            ArithmeticVariant::ImmRegMem,
         ));
     }
-    if byte >> 2 == 0b100000 {
-        return Some((
-            ArithmeticFamily::Add,
-            ArithmeticVariant::ImmRegMem(ImmRegMemStruct {}),
-        ));
+    if first_byte >> 1 == 0b0000010 {
+        return Some((ArithmeticFamily::Add, ArithmeticVariant::ImmAcc));
     }
-    if byte >> 1 == 0b0000010 {
-        return Some((
-            ArithmeticFamily::Add,
-            ArithmeticVariant::ImmAcc(ImmAccStruct {}),
-        ));
+    if first_byte >> 2 == 0b001010 {
+        return Some((ArithmeticFamily::Sub, ArithmeticVariant::RegMemAndRegEither));
     }
-    if byte >> 2 == 0b001010 {
-        return Some((
-            ArithmeticFamily::Sub,
-            ArithmeticVariant::RegMemAndRegEither(RegMemAndRegEitherStruct {}),
-        ));
+    if first_byte >> 2 == 0b100000 {
+        return Some((ArithmeticFamily::Sub, ArithmeticVariant::ImmRegMem));
     }
-    if byte >> 2 == 0b100000 {
-        return Some((
-            ArithmeticFamily::Sub,
-            ArithmeticVariant::ImmRegMem(ImmRegMemStruct {}),
-        ));
+    if first_byte >> 1 == 0b0010110 {
+        return Some((ArithmeticFamily::Sub, ArithmeticVariant::ImmAcc));
     }
-    if byte >> 1 == 0b0010110 {
-        return Some((
-            ArithmeticFamily::Sub,
-            ArithmeticVariant::ImmAcc(ImmAccStruct {}),
-        ));
+    if first_byte >> 2 == 0b001110 {
+        return Some((ArithmeticFamily::Cmp, ArithmeticVariant::RegMemAndRegEither));
     }
-    if byte >> 2 == 0b001110 {
-        return Some((
-            ArithmeticFamily::Cmp,
-            ArithmeticVariant::RegMemAndRegEither(RegMemAndRegEitherStruct {}),
-        ));
+    if first_byte >> 2 == 0b100000 {
+        return Some((ArithmeticFamily::Cmp, ArithmeticVariant::ImmRegMem));
     }
-    if byte >> 2 == 0b100000 {
-        return Some((
-            ArithmeticFamily::Cmp,
-            ArithmeticVariant::ImmRegMem(ImmRegMemStruct {}),
-        ));
-    }
-    if byte >> 1 == 0b0011110 {
-        return Some((
-            ArithmeticFamily::Cmp,
-            ArithmeticVariant::ImmAcc(ImmAccStruct {}),
-        ));
+    if first_byte >> 1 == 0b0011110 {
+        return Some((ArithmeticFamily::Cmp, ArithmeticVariant::ImmAcc));
     }
     None
 }
@@ -167,8 +144,23 @@ fn try_decode_jump(byte: u8) -> Option<ConditionalJumpVariant> {
     if byte == 0b01111011 {
         return Some(ConditionalJumpVariant::JnpJpo);
     }
-    if byte == 0b011100 {
+    if byte == 0b01110001 {
         return Some(ConditionalJumpVariant::Jno);
+    }
+    if byte == 0b01111001 {
+        return Some(ConditionalJumpVariant::Jns);
+    }
+    if byte == 0b11100010 {
+        return Some(ConditionalJumpVariant::Loop);
+    }
+    if byte == 0b11100001 {
+        return Some(ConditionalJumpVariant::LoopzLoope);
+    }
+    if byte == 0b11100000 {
+        return Some(ConditionalJumpVariant::LoopnzLoopne);
+    }
+    if byte == 0b11100011 {
+        return Some(ConditionalJumpVariant::Jcxz);
     }
     None
 }

@@ -15,4 +15,9 @@ pub enum ConditionalJumpVariant {
     JnbeJa,
     JnpJpo,
     Jno,
+    Jns,
+    Loop,
+    LoopzLoope,
+    LoopnzLoopne,
+    Jcxz,
 }

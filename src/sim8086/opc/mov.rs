@@ -1,8 +1,3 @@
-// use crate::v2_sim8086::{
-//     dec::{decode_d, decode_mod, decode_reg, decode_rm, decode_w, Mode, Reg, D, W},
-//     dis::EffectiveAddress,
-// };
-
 #[derive(Debug)]
 pub enum MoveVariant {
     RegMemToFromReg,
@@ -14,7 +9,7 @@ pub enum MoveVariant {
 
 #[derive(Debug)]
 pub enum Operand {
-    Address(u16),
+    Address(i16),
     EffectiveAddress(EffectiveAddress),
     ImmediateValue(ImmediateValue),
     Register(Register),
@@ -28,7 +23,7 @@ pub enum ImmediateValue {
 
 #[derive(Debug)]
 pub enum EffectiveAddress {
-    JustRegister(Register),
+    // JustRegister(Register),
     RegisterAndOffset(Register, Register),
     RegisterAndDisplacement(Register, Displacement),
     RegisterOffsetAndDisplacement(Register, Register, Displacement),
@@ -40,7 +35,7 @@ pub enum Displacement {
     SixteenBits(i16),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Register {
     AX,
     CX,
@@ -264,7 +259,13 @@ pub fn get_operand(
             _ => panic!(),
         },
         0b110 => match mode {
-            0b00 => (Operand::Address(todo!()), 4),
+            0b00 => (
+                Operand::Address(
+                    (second_displacement_byte.unwrap() as i16) << 8
+                        | (first_displacement_byte.unwrap() as i16),
+                ),
+                4,
+            ),
             0b01 => (
                 Operand::EffectiveAddress(EffectiveAddress::RegisterAndDisplacement(
                     Register::BP,

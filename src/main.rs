@@ -1,12 +1,10 @@
-mod v2_sim8086;
+mod sim8086;
+use sim8086::{dis::Dissassembler, emu::Emulator};
 use std::{
     env::args,
     fs::File,
     io::{Error, Read},
 };
-use v2_sim8086::dis::Dissassembler;
-
-// Hello rsync!
 
 fn main() -> Result<(), Error> {
     let args: Vec<String> = args().collect();
@@ -18,17 +16,13 @@ fn main() -> Result<(), Error> {
     let mut program = Vec::new();
     in_f.read_to_end(&mut program)?;
 
-    // let filename = &args[1].split('/').last().unwrap();
-    // let mut out_f = File::create(format!("{}.asm", &filename.split(".").nth(0).unwrap()))?;
-
-    // out_f.write("bits 16\n\n".as_bytes())?;
-
     let mut sim = Dissassembler::new(&program);
+    let mut emu = Emulator::new();
     while let Some(inst) = sim.next() {
-        println!("{:?}", inst)
+        // println!("{:?}", inst);
+        emu.execute_instruction(&inst);
+        println!("{:?}", emu);
     }
-
-    // out_f.write(&format!("{}", instruction).into_bytes())?;
 
     Ok(())
 }
