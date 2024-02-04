@@ -16,20 +16,18 @@ impl<'a> Dissassembler<'a> {
     }
 }
 
-impl<'a> Iterator for Dissassembler<'a> {
-    type Item = Instruction;
-
-    fn next(&mut self) -> Option<Instruction> {
-        if self.cursor >= self.program.len() {
+impl<'a> Dissassembler<'a> {
+    pub fn get_instruction_at(&mut self, position: usize) -> Option<Instruction> {
+if position >= self.program.len() {
             return None;
         };
         let (first_byte, second_byte, third_byte, forth_byte, fifth_byte, sixth_byte) = (
-            self.program[self.cursor],
-            self.program.get(self.cursor + 1),
-            self.program.get(self.cursor + 2),
-            self.program.get(self.cursor + 3),
-            self.program.get(self.cursor + 4),
-            self.program.get(self.cursor + 5),
+            self.program[position],
+            self.program.get(position + 1),
+            self.program.get(position + 2),
+            self.program.get(position + 3),
+            self.program.get(position + 4),
+            self.program.get(position + 5),
         );
         let opcode = parse_opcode(first_byte, *second_byte.unwrap());
         println!("{:?}", opcode);
@@ -157,11 +155,17 @@ impl<'a> Iterator for Dissassembler<'a> {
                     let (first_operand, mut size) =
                         get_operand(mode, rm, w, third_byte.copied(), forth_byte.copied());
                     let second_operand = if s == 0b0 && w == 0b1 {
-                        let fifth_byte = *fifth_byte.unwrap();
-                        let sixth_byte = *sixth_byte.unwrap();
+                        // let fifth_byte = *fifth_byte.unwrap();
+                        // let sixth_byte = *sixth_byte.unwrap();
+                        // size += 2;
+                        // Operand::ImmediateValue(ImmediateValue::SixteenBits(
+                        //     ((sixth_byte as i16) << 8) | fifth_byte as i16,
+                        // ))
+                        let third_byte = *third_byte.unwrap();
+                        let forth_byte = *forth_byte.unwrap();
                         size += 2;
                         Operand::ImmediateValue(ImmediateValue::SixteenBits(
-                            ((sixth_byte as i16) << 8) | fifth_byte as i16,
+                            ((forth_byte as i16) << 8) | (third_byte as i16),
                         ))
                     } else {
                         let third_byte = *third_byte.unwrap();

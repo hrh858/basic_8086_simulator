@@ -3,20 +3,51 @@ use core::panic;
 use super::{
     dis::Instruction,
     opc::{
-        mov::{ImmediateValue, MoveVariant, Operand, Register},
-        Opcode,
+        arith::ArithmeticFamily , mov::{ImmediateValue, MoveVariant, Operand, Register}, Opcode
     },
 };
 
 #[derive(Debug)]
 pub struct Emulator {
     registers: EmulatorRegisters,
+    flags: EmulatorFlags,
+    pub instruction_pointer: u16,
 }
 
 impl Emulator {
     pub fn new() -> Self {
         Emulator {
+            flags: EmulatorFlags::new(),
             registers: EmulatorRegisters::new(),
+            instruction_pointer: 0,
+        }
+    }
+
+    fn get_operand_value(&self, operand: &Operand) -> i16 {
+        match operand {
+            Operand::ImmediateValue(imm_val) => match imm_val {
+                ImmediateValue::SixteenBits(val) => *val, 
+                ImmediateValue::EightBits(val) => *val as i16,
+            },
+            Operand::Register(reg) => match reg {
+                Register::AL => self.registers.reg_a.get_low() as i16,
+                Register::BL => self.registers.reg_b.get_low() as i16,
+                Register::CL => self.registers.reg_c.get_low() as i16,
+                Register::DL => self.registers.reg_d.get_low() as i16,
+                Register::AH => self.registers.reg_a.get_high() as i16,
+                Register::BH => self.registers.reg_b.get_low() as i16,
+                Register::CH => self.registers.reg_c.get_high() as i16,
+                Register::DH => self.registers.reg_d.get_high() as i16,
+                Register::AX => self.registers.reg_a.get(),
+                Register::BX => self.registers.reg_b.get(),
+                Register::CX => self.registers.reg_c.get(),
+                Register::DX => self.registers.reg_d.get(),
+                Register::SP => self.registers.reg_sp.get(),
+                Register::BP => self.registers.reg_bp.get(),
+                Register::SI => self.registers.reg_si.get(),
+                Register::DI => self.registers.reg_di.get(),
+            }
+            _ => todo!()
         }
     }
 
@@ -86,6 +117,7 @@ impl Emulator {
     }
 
     pub fn execute_instruction(&mut self, instruction: &Instruction) {
+        self.instruction_pointer += instruction.total_bytes as u16;
         match &instruction.opcode {
             Opcode::Move { variant } => {
                 let source = instruction.source.as_ref().unwrap();
@@ -109,13 +141,53 @@ impl Emulator {
                                 (Register::AH|Register::BH|Register::CH|Register::DH, Register::AH|Register::BH|Register::CH|Register::DH) => {self.set_register_low(*dest_reg, self.get_register_low(*source_reg))}
                                 (Register::AL|Register::BL|Register::CL|Register::DL, Register::AL|Register::BL|Register::CL|Register::DL) => {self.set_register_high(*dest_reg, self.get_register_high(*source_reg))}
                                 (Register::AX|Register::BX|Register::CX|Register::DX|Register::SP|Register::BP|Register::SI|Register::DI, Register::AX|Register::BX|Register::CX|Register::DX|Register::SP|Register::BP|Register::SI|Register::DI) => {self.set_register(*dest_reg, self.get_register(*source_reg))}
-                                _ => panic!(""),
+                                _ => todo!("I think there may be cases where you want to move the high part of a register into the low part of another or viceversa... right? Well, I will implement it later if necessary hehe"),
                             },
                         _ => todo!()
                     }
                     _ => todo!(),
                 }
-            }
+            },
+            Opcode::Arithmetic { family, .. } => {
+                let source = instruction.source.as_ref().unwrap();
+                let dest = instruction.destination.as_ref().unwrap();
+                let source_val = self.get_operand_value(source);
+                let dest_val = self.get_operand_value(dest);
+                let result = match family {
+                    ArithmeticFamily::Add => {
+                        let result = dest_val + source_val;
+                        self.flags.sign = (result as u16 & 0x8000) == 0x8000;
+                        self.flags.zero = result == 0;
+                        result
+                    },
+                    ArithmeticFamily::Sub => {
+                        let result = dest_val - source_val;
+                        self.flags.sign = (result as u16 & 0x8000) == 0x8000;
+                        self.flags.zero = result == 0;
+                        result
+                   },
+                    ArithmeticFamily::Cmp => {
+                        let result = dest_val - source_val;
+                        self.flags.sign = (result as u16 & 0x8000) == 0x8000;
+                        self.flags.zero = result == 0;
+                        dest_val
+                    },
+                };
+                match dest {
+                    Operand::Register(reg) => match reg {
+                        Register::AL | Register::AH | Register::AX => self.registers.reg_a.set(result),
+                        Register::BL | Register::BH | Register::BX => self.registers.reg_b.set(result),
+                        Register::CL | Register::CH | Register::CX => self.registers.reg_c.set(result),
+                        Register::DL | Register::DH | Register::DX => self.registers.reg_d.set(result),
+                        Register::SI => self.registers.reg_si.set(result), 
+                        Register::DI => self.registers.reg_di.set(result), 
+                        Register::SP => self.registers.reg_sp.set(result), 
+                        Register::BP => self.registers.reg_bp.set(result), 
+                    },
+                    _ => todo!()
+                }
+            },
+            Opcode::ConditionalJump { variant } => todo!(),
             _ => todo!(),
         };
     }
@@ -149,6 +221,20 @@ impl EmulatorRegisters {
 }
 
 #[derive(Debug)]
+pub struct EmulatorFlags {
+    zero: bool,
+    sign: bool
+}
+
+impl EmulatorFlags {
+    fn new() -> Self {
+        Self {
+        zero: false,
+        sign: false,
+        }
+    }}
+
+#[derive(Debug)]
 pub struct GeneralRegister(i16);
 impl GeneralRegister {
     pub fn get_high(&self) -> i8 {
@@ -179,5 +265,22 @@ impl SpecialRegister {
     }
     pub fn set(&mut self, value: i16) {
         self.0 = value
+    }
+}
+
+
+#[derive(Debug)]
+pub struct FlagsRegister(u16);
+impl FlagsRegister {
+    fn zero(&self) -> bool {
+        false
+    }
+    fn set_zero(&mut self, value: bool) {
+    }
+
+    fn negative(&self) -> bool {
+        false
+    }
+    fn set_negative(&mut self, value: bool) {
     }
 }
