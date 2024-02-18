@@ -19,10 +19,8 @@ fn main() -> Result<(), Error> {
     let mut sim = Dissassembler::new(&program);
     let mut emu = Emulator::new();
     while let Some(inst) = sim.get_instruction_at(emu.instruction_pointer as usize) {
-        // println!("{:?}", inst);
         emu.execute_instruction(&inst);
-        println!("{:?}", emu);
+        println!("{:?}", emu)
     }
-
     Ok(())
 }

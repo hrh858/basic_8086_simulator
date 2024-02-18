@@ -9,7 +9,7 @@ pub enum MoveVariant {
 
 #[derive(Debug)]
 pub enum Operand {
-    Address(i16),
+    Address(u16),
     EffectiveAddress(EffectiveAddress),
     ImmediateValue(ImmediateValue),
     Register(Register),
@@ -261,8 +261,8 @@ pub fn get_operand(
         0b110 => match mode {
             0b00 => (
                 Operand::Address(
-                    (second_displacement_byte.unwrap() as i16) << 8
-                        | (first_displacement_byte.unwrap() as i16),
+                    (second_displacement_byte.unwrap() as u16) << 8
+                        | (first_displacement_byte.unwrap() as u16),
                 ),
                 4,
             ),

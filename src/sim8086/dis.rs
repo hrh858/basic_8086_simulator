@@ -1,4 +1,7 @@
-use crate::sim8086::opc::{arith::ArithmeticVariant, mov::Register};
+use crate::sim8086::opc::{
+    arith::ArithmeticVariant,
+    mov::{Displacement, EffectiveAddress, Register},
+};
 
 use super::opc::{
     mov::{get_operand, ImmediateValue, MoveVariant, Operand},
@@ -18,7 +21,7 @@ impl<'a> Dissassembler<'a> {
 
 impl<'a> Dissassembler<'a> {
     pub fn get_instruction_at(&mut self, position: usize) -> Option<Instruction> {
-if position >= self.program.len() {
+        if position >= self.program.len() {
             return None;
         };
         let (first_byte, second_byte, third_byte, forth_byte, fifth_byte, sixth_byte) = (
@@ -30,7 +33,6 @@ if position >= self.program.len() {
             self.program.get(position + 5),
         );
         let opcode = parse_opcode(first_byte, *second_byte.unwrap());
-        println!("{:?}", opcode);
         match &opcode {
             Opcode::Move { variant } => match variant {
                 MoveVariant::RegMemToFromReg => {
@@ -88,6 +90,56 @@ if position >= self.program.len() {
                         source: Some(second_operand),
                         total_bytes: if w == 0b1 { 3 } else { 2 },
                     })
+                }
+                MoveVariant::ImmToRegMem => {
+                    let second_byte = *second_byte.unwrap();
+                    let mode = decode_mode(second_byte, 7);
+                    let rm = decode_rm(second_byte, 2);
+                    let w = decode_w(first_byte, 0);
+                    println!("{}, {}, {}", mode, rm, w);
+                    match (mode, rm, w) {
+                        (0b00, 0b110, 0b1) => {
+                            // Direct address, immediate value
+                            let third_byte = *third_byte.unwrap();
+                            let forth_byte = *forth_byte.unwrap();
+                            let fifth_byte = *fifth_byte.unwrap();
+                            let sixth_byte = *sixth_byte.unwrap();
+
+                            let addr = ((forth_byte as u16) << 8) | (third_byte as u16);
+                            let value = ((sixth_byte as u16) << 8) | (fifth_byte as u16);
+                            Some(Instruction {
+                                opcode,
+                                destination: Some(Operand::Address(addr as u16)),
+                                source: Some(Operand::ImmediateValue(ImmediateValue::SixteenBits(
+                                    value as i16,
+                                ))),
+                                total_bytes: 6,
+                            })
+                        }
+                        (0b1, 0b111, 0b1) => {
+                            // [BX + <8 bits value>], immediate value
+                            let third_byte = *third_byte.unwrap();
+                            let forth_byte = *forth_byte.unwrap();
+                            let fifth_byte = *fifth_byte.unwrap();
+                            let disp = third_byte;
+                            let value = ((fifth_byte as u16) << 8) | (forth_byte as u16);
+                            println!("value: {}, disp: {}", value, disp);
+                            Some(Instruction {
+                                opcode,
+                                destination: Some(Operand::EffectiveAddress(
+                                    EffectiveAddress::RegisterAndDisplacement(
+                                        Register::BX,
+                                        Displacement::EightBits(disp as i8),
+                                    ),
+                                )),
+                                source: Some(Operand::ImmediateValue(ImmediateValue::SixteenBits(
+                                    value as i16,
+                                ))),
+                                total_bytes: 5,
+                            })
+                        }
+                        _ => todo!(),
+                    }
                 }
                 _ => todo!(),
             },
